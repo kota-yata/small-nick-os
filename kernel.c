@@ -11,6 +11,8 @@ typedef uint32_t size_t;
 
 extern char __bss[], __bss_end[], __stack_top[], __free_ram[], __free_ram_end[];
 
+static paddr_t next_paddr;
+
 // switch from supervisor mode to machine mode
 // ecall itself can be more of an abstract call used when an upper layer wants to call a lower layer
 struct sbiret sbi_call(long arg0, long arg1, long arg2, long arg3, long arg4, long arg5, long fid, long eid) {
@@ -37,9 +39,21 @@ long getchar(void) {
   return ret.error;
 }
 
-// Linear memory allocation with no free
+static struct free_page *free_list;
+
+void page_alloc_init(void) {
+  next_paddr = (paddr_t) __free_ram;
+  free_list = NULL;
+}
+
 paddr_t alloc_pages(uint32_t n) {
-  static paddr_t next_paddr = (paddr_t) __free_ram;
+  if (n == 1 && free_list) {
+    struct free_page *page = free_list;
+    free_list = page->next;
+    memset((void *) page, 0, PAGE_SIZE);
+    return (paddr_t) page;
+  }
+
   paddr_t paddr = next_paddr;
   next_paddr += n * PAGE_SIZE;
 
@@ -49,6 +63,14 @@ paddr_t alloc_pages(uint32_t n) {
 
   memset((void *) paddr, 0, n * PAGE_SIZE);
   return paddr;
+}
+
+void free_pages(paddr_t paddr, uint32_t n) {
+  for (uint32_t i = 0; i < n; i++) {
+    struct free_page *page = (struct free_page *)(paddr + i * PAGE_SIZE);
+    page->next = free_list;
+    free_list = page;
+  }
 }
 // Exception handler
 __attribute__((naked))
@@ -368,7 +390,9 @@ void handle_trap(struct trap_frame *f) {
 
 void kernel_main(void) {
   memset(__bss, 0, (size_t) __bss_end - (size_t) __bss);
-  
+
+  page_alloc_init();
+
   WRITE_CSR(stvec, (uint32_t) kernel_entry);
   virtio_blk_init();
 
