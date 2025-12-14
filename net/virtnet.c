@@ -167,6 +167,8 @@ void virtio_net_transmit(void *data, uint32_t len) {
   while (vq->last_used_index == *vq->used_index)
       ;
 
+  free_pages(packet_paddr, 1);
+
   return;
 }
 

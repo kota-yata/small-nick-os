@@ -2,6 +2,8 @@
 #include "common.h"
 
 paddr_t alloc_pages(uint32_t n);
+void free_pages(paddr_t paddr, uint32_t n);
+void page_alloc_init(void);
 
 // return value of sbi_call
 struct sbiret {
@@ -59,7 +61,6 @@ struct process {
 struct free_page {
   struct free_page *next;
 };
-static struct free_page *free_list = NULL;
 
 // virtual table
 #define SATP_SV32 (1u << 31)
